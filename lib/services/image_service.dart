@@ -1,3 +1,4 @@
+//image_service.dart
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -8,9 +9,7 @@ class ImageService {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 90,
+        // Keep original quality
       );
 
       if (image != null) {
@@ -26,9 +25,7 @@ class ImageService {
   Future<List<File>> pickMultipleImages() async {
     try {
       final List<XFile> images = await _picker.pickMultiImage(
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 90,
+        // Keep original quality
       );
 
       return images.map((xFile) => File(xFile.path)).toList();

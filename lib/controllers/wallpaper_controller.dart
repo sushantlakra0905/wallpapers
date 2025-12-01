@@ -2,6 +2,8 @@
 
 import 'dart:math';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
 import '../models/wallpaper_model.dart';
 import '../services/image_service.dart';
 import '../services/local_storage.dart';
@@ -43,14 +45,40 @@ class WallpaperController {
     await _localStorage.saveStats(_stats);
   }
 
+  // *************** NEW: Permanent Storage Copy ***************
+  Future<File> _saveToPermanentStorage(File originalFile) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final wallpapersDir = Directory('${appDir.path}/wallpapers');
+
+    if (!wallpapersDir.existsSync()) {
+      wallpapersDir.createSync(recursive: true);
+    }
+
+    final fileName = originalFile.path.split('/').last;
+    final savedFile = File('${wallpapersDir.path}/$fileName');
+
+    // avoid overwriting: append timestamp if exists
+    if (savedFile.existsSync()) {
+      final newFileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${fileName}';
+      return originalFile.copy('${wallpapersDir.path}/$newFileName');
+    }
+
+    return originalFile.copy(savedFile.path);
+  }
+  // ***********************************************************
+
   Future<void> addImage(File imageFile) async {
     try {
-      final fileSize = await _imageService.getFileSize(imageFile);
-      final fileName = _imageService.getFileName(imageFile.path);
+      // save to permanent folder
+      final savedFile = await _saveToPermanentStorage(imageFile);
+
+      final fileSize = await _imageService.getFileSize(savedFile);
+      final fileName = _imageService.getFileName(savedFile.path);
 
       final newImage = WallpaperImage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        filePath: imageFile.path,
+        filePath: savedFile.path, // UPDATED
         fileName: fileName,
         addedDate: DateTime.now(),
         fileSize: fileSize,
@@ -73,12 +101,14 @@ class WallpaperController {
   Future<void> addMultipleImages(List<File> imageFiles) async {
     try {
       for (final imageFile in imageFiles) {
-        final fileSize = await _imageService.getFileSize(imageFile);
-        final fileName = _imageService.getFileName(imageFile.path);
+        final savedFile = await _saveToPermanentStorage(imageFile);
+
+        final fileSize = await _imageService.getFileSize(savedFile);
+        final fileName = _imageService.getFileName(savedFile.path);
 
         final newImage = WallpaperImage(
           id: '${DateTime.now().millisecondsSinceEpoch}_${_images.length}',
-          filePath: imageFile.path,
+          filePath: savedFile.path, // UPDATED
           fileName: fileName,
           addedDate: DateTime.now(),
           fileSize: fileSize,
@@ -108,8 +138,6 @@ class WallpaperController {
 
     try {
       await WallpaperService.setHomeScreen(randomImage.filePath);
-
-      // Stats already updated by getRandomImage()
       await _saveStats();
       return true;
     } catch (e) {
@@ -117,9 +145,9 @@ class WallpaperController {
     }
   }
 
-
   Future<void> removeImage(String imageId) async {
     _images.removeWhere((image) => image.id == imageId);
+
     _stats = AppStats(
       totalImages: _images.length,
       lastWallpaperSet: _stats.lastWallpaperSet,
