@@ -1,7 +1,8 @@
 //wallpaper_controller.dart
 
-import 'dart:math';
 import 'dart:io';
+import 'dart:math';
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/wallpaper_model.dart';
@@ -185,6 +186,81 @@ class WallpaperController {
     _saveStats();
     return selectedImage;
   }
+
+  // *************** NEW: Export all images to Downloads folder ***************
+
+  Future<int> exportAllImages() async {
+    int exportedCount = 0;
+
+    try {
+      // For Android, try different possible download directories
+      Directory? exportDir;
+
+      if (Platform.isAndroid) {
+        // Try primary Downloads directory
+        exportDir = Directory('/storage/emulated/0/Download');
+
+        // If that doesn't exist, try alternative paths
+        if (!exportDir.existsSync()) {
+          exportDir = Directory('/sdcard/Download');
+        }
+
+        if (!exportDir.existsSync()) {
+          // Try to get Downloads directory via path_provider
+          final downloadsDir = await getDownloadsDirectory();
+          if (downloadsDir != null) {
+            exportDir = downloadsDir;
+          }
+        }
+      } else if (Platform.isIOS) {
+        exportDir = await getDownloadsDirectory();
+      }
+
+      if (exportDir == null) {
+        throw Exception('Could not access Downloads directory');
+      }
+
+      // Create timestamped subfolder
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final timestampedDir = Directory('${exportDir.path}/WallpaperExport_$timestamp');
+
+      if (!timestampedDir.existsSync()) {
+        timestampedDir.createSync(recursive: true);
+      }
+
+      // Copy all images
+      for (final image in _images) {
+        try {
+          final sourceFile = File(image.filePath);
+          if (sourceFile.existsSync()) {
+            final fileName = path.basename(sourceFile.path);
+
+            // Generate unique filename to avoid conflicts
+            String uniqueFileName = fileName;
+            int counter = 1;
+
+            while (File('${timestampedDir.path}/$uniqueFileName').existsSync()) {
+              final nameWithoutExt = path.withoutExtension(fileName);
+              final extension = path.extension(fileName);
+              uniqueFileName = '${nameWithoutExt}_($counter)$extension';
+              counter++;
+            }
+
+            final destinationPath = '${timestampedDir.path}/$uniqueFileName';
+            await sourceFile.copy(destinationPath);
+            exportedCount++;
+          }
+        } catch (e) {
+          print('Error exporting image ${image.fileName}: $e');
+        }
+      }
+
+      return exportedCount;
+    } catch (e) {
+      throw Exception('Export failed: $e');
+    }
+  }
+  // **************************************************************************
 
   String formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';

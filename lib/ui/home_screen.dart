@@ -5,9 +5,8 @@ import 'package:wallpaper_picker/ui/widgets/action_butttons.dart';
 import 'package:wallpaper_picker/ui/widgets/stats_card.dart';
 import '../controllers/wallpaper_controller.dart';
 import '../services/image_service.dart';
-import '../services/wallpaper_service.dart';
 import 'image_grid.dart';
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:share_plus/share_plus.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ImageService _imageService = ImageService();
   bool _isLoading = true;
   bool _isAddingMultiple = false;
-  bool _autoDaily = false;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -40,35 +39,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
     );
-  }
-
-  /// Toggle auto daily wallpaper change
-  void _toggleDailyAutoChange(bool value) async {
-    setState(() => _autoDaily = value);
-
-    if (value) {
-      await AndroidAlarmManager.periodic(
-        const Duration(hours: 24),
-        1, // Unique ID
-        _dailyWallpaperCallback,
-        wakeup: true,
-        rescheduleOnReboot: true,
-      );
-      _showSnackBar("Daily auto-change enabled!");
-    } else {
-      await AndroidAlarmManager.cancel(1);
-      _showSnackBar("Daily auto-change disabled.");
-    }
-  }
-
-  /// Background callback
-  static void _dailyWallpaperCallback() async {
-    final controller = WallpaperController();
-    await controller.initialize();
-    final randomImage = controller.getRandomImage();
-    if (randomImage != null) {
-      await WallpaperService.setHomeScreen(randomImage.filePath);
-    }
   }
 
   /// Add photos (single + multiple combined)
@@ -162,6 +132,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Export all images to Downloads folder
+  Future<void> _exportAllImages() async {
+    if (_controller.images.isEmpty) {
+      _showSnackBar('No images to export');
+      return;
+    }
+
+    // Check storage permission
+    if (await Permission.storage.isDenied) {
+      final status = await Permission.storage.request();
+      if (!status.isGranted) {
+        _showSnackBar('Storage permission is required to save images');
+        return;
+      }
+    }
+
+    setState(() => _isExporting = true);
+
+    try {
+      final exportedCount = await _controller.exportAllImages();
+      _showSnackBar('$exportedCount images exported to Downloads folder');
+    } catch (e) {
+      _showSnackBar('Error exporting images: $e');
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -171,12 +169,18 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Colors.white,
         elevation: 4,
         actions: [
-          if (_controller.images.isNotEmpty)
+          if (_controller.images.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: _isExporting ? null : _exportAllImages,
+              tooltip: 'Export All',
+            ),
             IconButton(
               icon: const Icon(Icons.delete_sweep),
               onPressed: _handleClearAll,
               tooltip: 'Clear All',
             ),
+          ],
         ],
       ),
       body: _isLoading
@@ -206,12 +210,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-          SwitchListTile(
-            title: const Text("Auto Change Daily"),
-            subtitle: const Text("Automatically sets a random wallpaper every 24 hours"),
-            value: _autoDaily,
-            onChanged: _toggleDailyAutoChange,
-          ),
+          if (_isExporting)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Exporting images...', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
 
           Expanded(
             child: ImageGrid(

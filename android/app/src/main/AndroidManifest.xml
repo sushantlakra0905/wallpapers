@@ -10,12 +10,31 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-    <!-- ====================================================== -->
+    <!-- ===== Storage permissions for download feature ===== -->
+    <!-- For Android 10+ (API 29+) we need MANAGE_EXTERNAL_STORAGE -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+    <!-- Legacy permission for older Android versions -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <!-- ========================================================= -->
 
     <application
         android:label="wallpapers"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true">
+
+        <!-- Add this provider for Android 10+ file access -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <activity
             android:name=".MainActivity"
@@ -43,21 +62,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <receiver
-            android:name="io.flutter.plugins.androidalarmmanager.AlarmBroadcastReceiver"
-            android:exported="true" />
-        <receiver
-            android:name="io.flutter.plugins.androidalarmmanager.OneShotAlarmBroadcastReceiver"
-            android:exported="true" />
-        <receiver
-            android:name="io.flutter.plugins.androidalarmmanager.RebootBroadcastReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-            </intent-filter>
-        </receiver>
-
 
     </application>
 
