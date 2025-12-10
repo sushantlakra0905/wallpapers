@@ -68,7 +68,7 @@ class SplashScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'The Great Sushant',
+                  'Me and me alone',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
